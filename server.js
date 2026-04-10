@@ -370,27 +370,37 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
             for (const season of seasons) {
                 const { episodes, ...sData } = season;
                 if (seriesId || sData.id) {
-                    seasonsToUpsert.push({ 
+                    const seasonObj = { 
                         id: sData.id,
-                        series_id: seriesId || sData.series_id,
                         title: sData.title,
                         number: sData.number,
                         image: sData.image,
                         trailer_url: sData.trailer_url || sData.trailerUrl
-                    });
+                    };
+                    
+                    // Only include series_id if we have it, to avoid nullifying existing links
+                    const finalSeriesId = seriesId || sData.series_id;
+                    if (finalSeriesId) seasonObj.series_id = finalSeriesId;
+
+                    seasonsToUpsert.push(seasonObj);
                 }
 
                 if (episodes !== undefined) {
                     for (const ep of episodes) {
                         const { watchUrls, number, ...epData } = ep;
-                        episodesToUpsert.push({ 
+                        const epObj = { 
                             id: epData.id,
-                            season_id: season.id, 
                             title: epData.title,
                             episode_number: number || 0,
                             image: epData.image,
                             description: epData.description
-                        });
+                        };
+                        
+                        // Relationship guard
+                        const finalSeasonId = season.id || epData.season_id;
+                        if (finalSeasonId) epObj.season_id = finalSeasonId;
+
+                        episodesToUpsert.push(epObj);
 
                         if (watchUrls !== undefined) {
                             episodeServersToDelete.push(epData.id);
