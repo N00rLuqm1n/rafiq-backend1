@@ -404,22 +404,35 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
                 }
             }
 
-            // Execute Bulk Operations in parallel
-            const tasks = [];
-            if (seasonsToUpsert.length) tasks.push(supabase.from('seasons').upsert(seasonsToUpsert));
-            if (episodesToUpsert.length) tasks.push(supabase.from('episodes').upsert(episodesToUpsert));
-            
-            await Promise.all(tasks);
+            // Execute Operations Sequentially to respect Foreign Key constraints
+            if (seasonsToUpsert.length) {
+                const { error: seaErr } = await supabase.from('seasons').upsert(seasonsToUpsert);
+                if (seaErr) {
+                    console.error('[BACKEND ERROR] Seasons Upsert Failed:', seaErr.message);
+                    throw seaErr;
+                }
+                console.log(`[BACKEND] Successfully bulk-saved ${seasonsToUpsert.length} seasons`);
+            }
+
+            if (episodesToUpsert.length) {
+                const { error: epErr } = await supabase.from('episodes').upsert(episodesToUpsert);
+                if (epErr) {
+                    console.error('[BACKEND ERROR] Episodes Upsert Failed:', epErr.message);
+                    throw epErr;
+                }
+                console.log(`[BACKEND] Successfully bulk-saved ${episodesToUpsert.length} episodes`);
+            }
 
             // Handle Episode Servers (Delete old, insert new)
             if (episodeServersToDelete.length) {
                 await supabase.from('episode_servers').delete().in('episode_id', episodeServersToDelete);
                 if (episodeServersToInsert.length) {
                     await supabase.from('episode_servers').insert(episodeServersToInsert);
+                    console.log(`[BACKEND] Successfully bulk-saved ${episodeServersToInsert.length} episode servers`);
                 }
             }
         }
-        console.log('[ADMIN SUCCESS] Content Saved Successfully (Bulk)');
+        console.log('[ADMIN SUCCESS] Content Saved Successfully (Sequential)');
         res.json({ message: 'Content saved successfully' });
     } catch (error) { 
         console.error('[ADMIN FATAL] Series Save Error:', error);
