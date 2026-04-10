@@ -370,13 +370,12 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
             for (const season of seasons) {
                 const { episodes, ...sData } = season;
                 if (seriesId || sData.id) {
-                    const seasonObj = { 
-                        id: sData.id,
-                        title: sData.title,
-                        number: sData.number,
-                        image: sData.image,
-                        trailer_url: sData.trailer_url || sData.trailerUrl
-                    };
+                    const seasonObj = { id: sData.id };
+                    if (sData.title !== undefined) seasonObj.title = sData.title;
+                    if (sData.number !== undefined) seasonObj.number = sData.number;
+                    if (sData.image !== undefined) seasonObj.image = sData.image;
+                    const trailer = sData.trailer_url || sData.trailerUrl;
+                    if (trailer !== undefined) seasonObj.trailer_url = trailer;
                     
                     // Only include series_id if we have it, to avoid nullifying existing links
                     const finalSeriesId = seriesId || sData.series_id;
@@ -388,13 +387,11 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
                 if (episodes !== undefined) {
                     for (const ep of episodes) {
                         const { watchUrls, number, ...epData } = ep;
-                        const epObj = { 
-                            id: epData.id,
-                            title: epData.title,
-                            episode_number: number || 0,
-                            image: epData.image,
-                            description: epData.description
-                        };
+                        const epObj = { id: epData.id };
+                        if (epData.title !== undefined) epObj.title = epData.title;
+                        if (number !== undefined) epObj.episode_number = number || 0;
+                        if (epData.image !== undefined) epObj.image = epData.image;
+                        if (epData.description !== undefined) epObj.description = epData.description;
                         
                         // Relationship guard
                         const finalSeasonId = season.id || epData.season_id;
