@@ -10,17 +10,21 @@ const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Middlewares
-const { validateMovie, validateActor } = require('./middleware/validate');
-const auditLog = require('./middleware/audit');
-const errorHandler = require('./middleware/errorHandler');
+// --- استيراد الملفات المرفوعة بجانب السيرفر مباشرة ---
+const { validateMovie, validateActor } = require('./validate'); // تم التأكد من المسار
+const auditLog = require('./audit'); 
+const errorHandler = require('./errorHandler');
 
 const app = express();
+
+// إعداد مهم لـ Vercel لكي يعمل الـ Rate Limit بشكل صحيح
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-    console.error('[CRITICAL] JWT_SECRET is not defined in environment variables.');
+    console.error('[CRITICAL] JWT_SECRET is missing!');
     process.exit(1);
 }
 
@@ -58,7 +62,6 @@ app.use(cors({
         if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
             callback(null, true);
         } else {
-            console.warn(`[SECURITY] Blocked cross-origin request from: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -72,13 +75,17 @@ app.use(express.json({ limit: '5mb' }));
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
-    message: { error: 'Rate limit exceeded. Try again later.' }
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Rate limit exceeded.' }
 });
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // Stricter for login
-    message: { error: 'Too many login attempts. Blocked for 15 minutes.' }
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts.' }
 });
 
 app.use(limiter);
@@ -108,10 +115,7 @@ const authenticate = (req, res, next) => {
     const token = authHeader.split(' ')[1];
     
     jwt.verify(token, JWT_SECRET, { issuer: 'rafiq-secure-api' }, (err, decoded) => {
-        if (err) {
-            console.warn('[AUTH] Token verification failed:', err.message);
-            return res.status(403).json({ error: 'Access denied' });
-        }
+        if (err) return res.status(403).json({ error: 'Access denied' });
         req.admin = decoded;
         next();
     });
@@ -131,14 +135,11 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
             .eq('username', username.toLowerCase().trim())
             .single();
         
-        if (error || !admin) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+        if (error || !admin) return res.status(401).json({ error: 'Invalid credentials' });
 
         const isValid = await bcrypt.compare(password, admin.password);
         if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
 
-        console.log(`[AUTH] Admin ${admin.username} logged in from ${req.ip}`);
         const token = jwt.sign(
             { id: admin.id, username: admin.username, role: 'admin' }, 
             JWT_SECRET, 
@@ -147,12 +148,11 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
 
         res.json({ token, message: 'Login successful' });
     } catch (error) {
-        console.error('[AUTH FATAL]', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// --- HELPERS ---
+// Helper Map
 const mapMovie = (m) => ({
     ...m,
     releaseDate: m.release_date || m.releasedate || m.releaseDate || '',
@@ -174,29 +174,6 @@ const mapSeries = (s) => ({
             watchUrls: e.episode_servers || []
         })).sort((a,b) => a.number - b.number)
     })).sort((a,b) => a.number - b.number)
-});
-
-// Helper to sanitize object for DB (Snake Case per discovered schema)
-const toDBMovie = (m) => ({
-    id: m.id,
-    title: m.title,
-    description: m.description,
-    rating: m.rating,
-    release_date: m.releaseDate,
-    image: m.image,
-    background: m.background,
-    trailer_url: m.trailerUrl
-});
-
-const toDBSeries = (s) => ({
-    id: s.id,
-    title: s.title,
-    description: s.description,
-    rating: s.rating,
-    release_date: s.releaseDate,
-    image: s.image,
-    background: s.background,
-    trailer_url: s.trailerUrl
 });
 
 // --- PUBLIC ROUTES ---
@@ -246,37 +223,33 @@ app.get('/api/public/actors', async (req, res) => {
 
 // --- PROTECTED ADMIN ROUTES ---
 app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'), async (req, res) => {
-    console.log('[ADMIN] Saving Movie:', req.body.title);
     try {
         const { actors, watchUrls, ...rawMovie } = req.body;
-        const dbMovie = toDBMovie(rawMovie);
-        
+        const dbMovie = {
+            id: rawMovie.id,
+            title: rawMovie.title,
+            description: rawMovie.description,
+            rating: rawMovie.rating,
+            release_date: rawMovie.releaseDate,
+            image: rawMovie.image,
+            background: rawMovie.background,
+            trailer_url: rawMovie.trailerUrl
+        };
         const { error } = await supabase.from('movies').upsert(dbMovie);
-        if (error) {
-            console.error('[ADMIN ERROR] Movie Upsert Failed:', error.message);
-            return res.status(400).json({ error: error.message });
-        }
+        if (error) throw error;
 
         if (actors !== undefined) {
             await supabase.from('movie_actors').delete().eq('movie_id', dbMovie.id);
-            if (actors.length) {
-                await supabase.from('movie_actors').insert(actors.map(aid => ({ movie_id: dbMovie.id, actor_id: aid })));
-            }
+            if (actors.length) await supabase.from('movie_actors').insert(actors.map(aid => ({ movie_id: dbMovie.id, actor_id: aid })));
         }
 
         if (watchUrls !== undefined) {
             await supabase.from('movie_servers').delete().eq('movie_id', dbMovie.id);
-            if (watchUrls.length) {
-                await supabase.from('movie_servers').insert(watchUrls.map(s => ({ movie_id: dbMovie.id, name: s.name, url: s.url })));
-            }
+            if (watchUrls.length) await supabase.from('movie_servers').insert(watchUrls.map(s => ({ movie_id: dbMovie.id, name: s.name, url: s.url })));
         }
 
-        console.log('[ADMIN SUCCESS] Movie Saved Successfully');
         res.json({ message: 'Movie saved successfully', id: dbMovie.id });
-    } catch (error) { 
-        console.error('[ADMIN FATAL] Movie Save Error:', error);
-        res.status(500).json({ error: error.message }); 
-    }
+    } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
 app.delete('/api/admin/movies/:id', authenticate, auditLog('DELETE_MOVIE'), async (req, res) => {
@@ -293,10 +266,7 @@ app.post('/api/admin/actors', authenticate, validateActor, auditLog('SAVE_ACTOR'
         const { error } = await supabase.from('actors').upsert({ id, name, image });
         if (error) throw error;
         res.json({ message: 'Actor saved' });
-    } catch (error) { 
-        console.error('[ADMIN ERROR] Actor Save Failed:', error.message);
-        res.status(400).json({ error: error.message }); 
-    }
+    } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
 app.delete('/api/admin/actors/:id', authenticate, auditLog('DELETE_ACTOR'), async (req, res) => {
@@ -307,116 +277,6 @@ app.delete('/api/admin/actors/:id', authenticate, auditLog('DELETE_ACTOR'), asyn
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
 
-app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req, res) => {
-    console.log('[ADMIN] Saving Series/Content:', req.body.title || 'Partial Update');
-    try {
-        const { actors, seasons, ...rawSeries } = req.body;
-        const seriesId = rawSeries.id; // May be undefined for season-only updates
-
-        if (!seriesId && !rawSeries.title && !seasons) {
-             return res.status(400).json({ error: 'Invalid request: No ID or data provided' });
-        }
-
-        // Only upsert the main series row if metadata (like title) is provided
-        if (rawSeries.title) {
-            const dbSeries = {
-                id: seriesId,
-                title: rawSeries.title,
-                description: rawSeries.description,
-                rating: rawSeries.rating,
-                release_date: rawSeries.release_date || rawSeries.releaseDate,
-                image: rawSeries.image,
-                background: rawSeries.background,
-                trailer_url: rawSeries.trailer_url || rawSeries.trailerUrl
-            };
-            
-            const { error: sErr } = await supabase.from('series').upsert(dbSeries);
-            if (sErr) {
-                console.error('[ADMIN ERROR] Series Upsert Failed:', sErr.message);
-                return res.status(400).json({ error: sErr.message });
-            }
-        }
-
-        if (seriesId && actors !== undefined) {
-            await supabase.from('series_actors').delete().eq('series_id', seriesId);
-            if (actors.length) await supabase.from('series_actors').insert(actors.map(aid => ({ series_id: seriesId, actor_id: aid })));
-        }
-
-        if (seasons !== undefined) {
-            const seasonsToUpsert = [];
-            const episodesToUpsert = [];
-            const episodeServersToDelete = [];
-            const episodeServersToInsert = [];
-
-            for (const season of seasons) {
-                const { episodes, ...sData } = season;
-                if (seriesId || sData.id) {
-                    seasonsToUpsert.push({ 
-                        id: sData.id,
-                        series_id: seriesId || sData.series_id,
-                        title: sData.title,
-                        number: sData.number,
-                        image: sData.image,
-                        trailer_url: sData.trailer_url || sData.trailerUrl
-                    });
-                }
-
-                if (episodes !== undefined) {
-                    for (const ep of episodes) {
-                        const { watchUrls, number, ...epData } = ep;
-                        episodesToUpsert.push({ 
-                            id: epData.id,
-                            season_id: season.id, 
-                            title: epData.title,
-                            episode_number: number || 0,
-                            image: epData.image,
-                            description: epData.description
-                        });
-
-                        if (watchUrls !== undefined) {
-                            episodeServersToDelete.push(epData.id);
-                            if (watchUrls.length) {
-                                watchUrls.forEach(srv => {
-                                    episodeServersToInsert.push({ episode_id: epData.id, name: srv.name, url: srv.url });
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Execute Bulk Operations in parallel
-            const tasks = [];
-            if (seasonsToUpsert.length) tasks.push(supabase.from('seasons').upsert(seasonsToUpsert));
-            if (episodesToUpsert.length) tasks.push(supabase.from('episodes').upsert(episodesToUpsert));
-            
-            await Promise.all(tasks);
-
-            // Handle Episode Servers (Delete old, insert new)
-            if (episodeServersToDelete.length) {
-                await supabase.from('episode_servers').delete().in('episode_id', episodeServersToDelete);
-                if (episodeServersToInsert.length) {
-                    await supabase.from('episode_servers').insert(episodeServersToInsert);
-                }
-            }
-        }
-        console.log('[ADMIN SUCCESS] Content Saved Successfully (Bulk)');
-        res.json({ message: 'Content saved successfully' });
-    } catch (error) { 
-        console.error('[ADMIN FATAL] Series Save Error:', error);
-        res.status(500).json({ error: error.message }); 
-    }
-});
-
-app.delete('/api/admin/series/:id', authenticate, auditLog('DELETE_SERIES'), async (req, res) => {
-    try {
-        const { error } = await supabase.from('series').delete().eq('id', req.params.id);
-        if (error) throw error;
-        res.json({ message: 'Series deleted successfully' });
-    } catch (error) { res.status(400).json({ error: error.message }); }
-});
-
-// --- HEALTH CHECK ---
 app.get('/', (req, res) => res.send('Rafiq Secure Backend is running 🚀'));
 
 // Export for Vercel
