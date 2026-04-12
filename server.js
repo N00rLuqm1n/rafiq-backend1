@@ -195,6 +195,31 @@ const mapSeries = (s) => ({
     })).sort((a,b) => a.number - b.number)
 });
 
+const mapMessage = (m) => ({
+    id: m.id,
+    title: m.title,
+    content: m.content,
+    backgroundUrl: m.background_url || m.backgroundUrl || '',
+    ctaText: m.cta_text || m.ctaText || '',
+    ctaUrl: m.cta_url || m.ctaUrl || '',
+    durationSeconds: m.duration_seconds || m.durationSeconds || 0,
+    triggerDelaySeconds: m.trigger_delay_seconds || m.triggerDelaySeconds || 0,
+    isActive: m.is_active !== undefined ? m.is_active : (m.isActive !== undefined ? m.isActive : true),
+    createdAt: m.created_at || m.createdAt
+});
+
+const toDBMessage = (m) => ({
+    id: m.id,
+    title: m.title,
+    content: m.content,
+    background_url: m.backgroundUrl,
+    cta_text: m.ctaText,
+    cta_url: m.ctaUrl,
+    duration_seconds: m.durationSeconds,
+    trigger_delay_seconds: m.triggerDelaySeconds,
+    is_active: m.isActive
+});
+
 // Helper to sanitize object for DB (Snake Case per discovered schema)
 const toDBMovie = (m) => ({
     id: m.id,
@@ -262,6 +287,15 @@ app.get('/api/public/actors', async (req, res) => {
         res.json(data || []);
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
+app.get('/api/public/messages', async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('messages').select('*').eq('is_active', true).order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json(data ? data.map(mapMessage) : []);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 
 // --- PROTECTED ADMIN ROUTES ---
 app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'), async (req, res) => {
@@ -454,6 +488,24 @@ app.delete('/api/admin/series/:id', authenticate, auditLog('DELETE_SERIES'), asy
         res.json({ message: 'Series deleted successfully' });
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
+
+app.post('/api/admin/messages', authenticate, auditLog('SAVE_MESSAGE'), async (req, res) => {
+    try {
+        const dbMsg = toDBMessage(req.body);
+        const { error } = await supabase.from('messages').upsert(dbMsg);
+        if (error) throw error;
+        res.json({ message: 'Message saved successfully' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+app.delete('/api/admin/messages/:id', authenticate, auditLog('DELETE_MESSAGE'), async (req, res) => {
+    try {
+        const { error } = await supabase.from('messages').delete().eq('id', req.params.id);
+        if (error) throw error;
+        res.json({ message: 'Message deleted successfully' });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
 
 // --- HEALTH CHECK ---
 app.get('/', (req, res) => res.send('Rafiq Secure Backend is running 🚀'));
