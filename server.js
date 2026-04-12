@@ -90,6 +90,9 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
+const DOOD_API_KEY = '562660bwqmd4fjnts767rz';
+const DOOD_BASE_URL = 'https://doodapi.co/api';
+
 // --- MYSQL POOL ---
 let pool;
 if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME) {
@@ -505,6 +508,35 @@ app.delete('/api/admin/messages/:id', authenticate, auditLog('DELETE_MESSAGE'), 
         res.json({ message: 'Message deleted successfully' });
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
+
+// --- DOODSTREAM PROXY ---
+app.get('/api/admin/doodstream/account', authenticate, async (req, res) => {
+    try {
+        const response = await fetch(`${DOOD_BASE_URL}/account/info?key=${DOOD_API_KEY}`);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/admin/doodstream/files', authenticate, async (req, res) => {
+    try {
+        const { fld_id = 0 } = req.query;
+        const response = await fetch(`${DOOD_BASE_URL}/folder/list?key=${DOOD_API_KEY}&fld_id=${fld_id}`);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) => {
+    try {
+        const { url, title } = req.body;
+        const apiUrl = `${DOOD_BASE_URL}/upload/url?key=${DOOD_API_KEY}&url=${encodeURIComponent(url)}${title ? `&new_title=${encodeURIComponent(title)}` : ''}`;
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 
 
 // --- HEALTH CHECK ---
