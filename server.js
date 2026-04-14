@@ -80,8 +80,12 @@ app.use(express.json({ limit: '5mb' }));
 // --- RATE LIMITERS ---
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: { error: 'Rate limit exceeded. Try again later.' }
+    max: 1000, // Increased from 100 to 1000
+    message: { error: 'Rate limit exceeded. Try again later.' },
+    skip: (req) => {
+        const origin = req.get('origin') || '';
+        return origin.includes('localhost') || origin.includes('127.0.0.1');
+    }
 });
 
 const loginLimiter = rateLimit({
