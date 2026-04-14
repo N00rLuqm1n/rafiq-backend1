@@ -15,7 +15,15 @@ require('dotenv').config();
 const { validateMovie, validateActor } = require('./validate');
 const auditLog = require('./audit');
 const errorHandler = require('./errorHandler');
-const botRoutes = require('./botRoutes');
+let botRoutes;
+try {
+    // نستخدم try-catch لضمان عدم توقف الموقع على Vercel
+    if (!process.env.VERCEL) {
+        botRoutes = require('./botRoutes');
+    }
+} catch (e) {
+    console.warn('[SERVER] Bot routes not loaded (Expected on Vercel)');
+}
 
 const app = express();
 app.set('trust proxy', 1); // For Vercel rate limiting
@@ -683,8 +691,10 @@ app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
     }
 });
 
-// --- RAFIQ BOT ROUTES (EXPERIMENTAL) ---
-app.use('/api/admin/bot', authenticate, botRoutes);
+// --- RAFIQ BOT ROUTES (EXPERIMENTAL - LOCAL ONLY) ---
+if (botRoutes) {
+    app.use('/api/admin/bot', authenticate, botRoutes);
+}
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
