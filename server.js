@@ -222,7 +222,7 @@ const mapMessage = (m) => ({
     ctaUrl: m.cta_url || m.ctaUrl || '',
     durationSeconds: m.duration_seconds || m.durationSeconds || 0,
     triggerDelaySeconds: m.trigger_delay_seconds || m.triggerDelaySeconds || 0,
-    isActive: m.is_active !== undefined ? m.is_active : (m.isActive !== undefined ? m.isActive : true),
+    isActive: true, // Hardcoded for now
     createdAt: m.created_at || m.createdAt
 });
 
@@ -234,8 +234,7 @@ const toDBMessage = (m) => ({
     cta_text: m.ctaText,
     cta_url: m.ctaUrl,
     duration_seconds: m.durationSeconds,
-    trigger_delay_seconds: m.triggerDelaySeconds,
-    is_active: m.isActive
+    trigger_delay_seconds: m.triggerDelaySeconds
 });
 
 // Helper to sanitize object for DB (Snake Case per discovered schema)
@@ -385,7 +384,7 @@ app.get('/api/public/messages', async (req, res) => {
     }
 
     try {
-        const { data, error } = await supabase.from('messages').select('*').eq('is_active', true).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
         if (error) throw error;
         res.json(data ? data.map(mapMessage) : []);
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -398,6 +397,7 @@ app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'
     try {
         const { actors, watchUrls, ...rawMovie } = req.body;
         const dbMovie = toDBMovie(rawMovie);
+        console.log('[DEBUG] Saving to DB (Movies):', JSON.stringify(dbMovie, null, 2));
         
         const { error } = await supabase.from('movies').upsert(dbMovie);
         if (error) {
@@ -478,6 +478,7 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
                 trailer_url: rawSeries.trailer_url || rawSeries.trailerUrl
             };
             
+            console.log('[DEBUG] Saving to DB (Series):', JSON.stringify(dbSeries, null, 2));
             const { error: sErr } = await supabase.from('series').upsert(dbSeries);
             if (sErr) {
                 console.error('[ADMIN ERROR] Series Upsert Failed:', sErr.message);
