@@ -550,8 +550,7 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
 
 
 // --- STATIC FILES & WEB INTERFACE (LOCAL & CLOUD SUPPORT) ---
-// Try to find the website folder relative to the server
-const websitePath = path.resolve(__dirname, '../website/dist');
+const websitePath = path.resolve(__dirname, '..', 'website', 'dist');
 
 if (fs.existsSync(websitePath)) {
     app.use(express.static(websitePath));
@@ -562,32 +561,32 @@ if (fs.existsSync(websitePath)) {
         res.sendFile(path.join(websitePath, 'index.html'));
     });
 } else {
-    // If we are here, we are likely on Vercel OR the folder is missing locally
     console.warn('[SERVER] ⚠️ Website build not found at:', websitePath);
     app.get('/', (req, res) => {
-        const isVercel = process.env.VERCEL === '1';
+        const isVercel = process.env.VERCEL === '1' || req.headers.host.includes('vercel');
         res.send(`
             <div style="font-family: sans-serif; text-align: center; padding: 50px;">
                 <h1>🚀 Rafiq API is Live (${isVercel ? 'Cloud' : 'Local'})</h1>
                 <p>This is the API server. If you wanted the website, make sure to run 'npm run build' in the website folder.</p>
-                <p style="color: gray; font-size: 0.8rem;">Path checked: ${websitePath}</p>
+                <p style="color: gray; font-size: 0.8rem;">Checked path: ${websitePath}</p>
             </div>
         `);
     });
 }
-// Health check moved outside if needed or kept simple
+
+// Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
 
 // Export for Vercel
 app.use(errorHandler);
 
-// Listen Locally if not in Vercel/Serverless environment
+// Listen Locally if not in Vercel
 if (require.main === module) {
-    app.listen(PORT, '0.0.0.0', () => {
+    const LOCAL_PORT = 5055; // Changed to avoid conflicts
+    app.listen(LOCAL_PORT, '0.0.0.0', () => {
         console.log(`
-        🚀 Rafiq Backend is ready!
-        🌍 Access locally: http://localhost:${PORT}
-        🌐 Website: https://رفيق.vip
+        🚀 Rafiq Local Server is ready!
+        🌍 Access Website: http://localhost:${LOCAL_PORT}
         `);
     });
 }
