@@ -247,8 +247,7 @@ const toDBMovie = (m) => ({
     release_date: m.releaseDate,
     image: m.image,
     background: m.background,
-    trailer_url: m.trailerUrl,
-    is_active: true
+    trailer_url: m.trailerUrl
 });
 
 const toDBSeries = (s) => ({
@@ -259,8 +258,7 @@ const toDBSeries = (s) => ({
     release_date: s.releaseDate,
     image: s.image,
     background: s.background,
-    trailer_url: s.trailerUrl,
-    is_active: true
+    trailer_url: s.trailerUrl
 });
 
 // --- CLOUD BRIDGE (PROXY) HELPER ---
