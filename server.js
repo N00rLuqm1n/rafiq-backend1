@@ -552,26 +552,26 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
 // --- STATIC FILES & WEB INTERFACE ---
 const websitePath = path.resolve(__dirname, '..', 'website', 'dist');
 
+console.log('[DEBUG] Checking website path:', websitePath);
+
 if (fs.existsSync(websitePath)) {
-    // Serve static assets (js, css, images)
+    // Serve static assets
     app.use(express.static(websitePath));
-    console.log('[SERVER] Website found and ready at:', websitePath);
+    console.log('[SERVER] ✅ Website build detected and active.');
 
-    // Health check relocated
-    app.get('/api/health', (req, res) => res.json({ status: 'active', message: 'Rafiq Backend is running' }));
-
-    // Handle all other requests by sending index.html (React Router support)
+    // Catch-all to serve index.html for any frontend route
     app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) {
-            res.sendFile(path.join(websitePath, 'index.html'));
-        } else {
-            res.status(404).json({ error: 'API Endpoint not found' });
+        if (req.path.startsWith('/api')) {
+            return res.status(404).json({ error: 'API route not found' });
         }
+        res.sendFile(path.join(websitePath, 'index.html'));
     });
 } else {
-    console.warn('[SERVER] Website build not found. Running in API-only mode.');
-    app.get('/', (req, res) => res.send('Rafiq API is running (No website build detected)'));
+    console.warn('[SERVER] ❌ Website build NOT found at:', websitePath);
+    app.get('/', (req, res) => res.send(`<h1>Rafiq API is running</h1><p>Website build folder not found at: ${websitePath}</p>`));
 }
+// Health check moved outside if needed or kept simple
+app.get('/api/health', (req, res) => res.json({ status: 'active' }));
 
 // Export for Vercel
 app.use(errorHandler);
