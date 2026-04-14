@@ -258,27 +258,40 @@ const toDBSeries = (s) => ({
 // --- CLOUD BRIDGE (PROXY) HELPER ---
 const VERCEL_BACKEND_URL = 'https://rafiq-backend1.vercel.app/api';
 
-const cloudBridge = async (req, res, targetPath) => {
-    try {
-        console.log(`[BRIDGE] Requesting: ${targetPath}`);
-        const response = await fetch(`${VERCEL_BACKEND_URL}${targetPath}`, {
-            headers: { 
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/RafiqBridge/1.0'
-            }
-        });
-        
-        if (!response.ok) {
-            console.error(`[BRIDGE CLOUD ERROR] Vercel returned ${response.status} for ${targetPath}`);
-            return false;
-        }
+const cloudBridge = async (req, res, targetPath, attempts = 3) => {
+    for (let i = 0; i < attempts; i++) {
+        try {
+            console.log(`[BRIDGE] Attempt ${i + 1}: ${targetPath}`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-        const data = await response.json();
-        res.json(data);
-        return true;
-    } catch (err) {
-        console.error('[BRIDGE NETWORK ERROR]', err.message);
-        return false;
+            const response = await fetch(`${VERCEL_BACKEND_URL}${targetPath}`, {
+                signal: controller.signal,
+                headers: { 
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/RafiqBridge/1.0'
+                }
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                console.error(`[BRIDGE CLOUD ERROR] Vercel returned ${response.status} for ${targetPath}`);
+                return false;
+            }
+
+            const data = await response.json();
+            res.json(data);
+            return true;
+        } catch (err) {
+            console.error(`[BRIDGE ATTEMPT ${i + 1} FAILED]`, err.message);
+            if (i === attempts - 1) {
+                res.status(500).json({ error: 'Cloud Bridge connection failed after multiple attempts' });
+                return false;
+            }
+            // Wait 500ms before retry
+            await new Promise(r => setTimeout(r, 500));
+        }
     }
 };
 
