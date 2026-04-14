@@ -78,7 +78,7 @@ app.use(express.json({ limit: '5mb' }));
 // --- RATE LIMITERS ---
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 1000, // Increased from 100 to 1000
+    max: 10000, // Increased to 10000 to allow heavy admin operations (many actors/episodes)
     message: { error: 'Rate limit exceeded. Try again later.' },
     skip: (req) => {
         const origin = req.get('origin') || '';
