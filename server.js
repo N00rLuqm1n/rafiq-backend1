@@ -15,15 +15,9 @@ require('dotenv').config();
 const { validateMovie, validateActor } = require('./validate');
 const auditLog = require('./audit');
 const errorHandler = require('./errorHandler');
+
+// Bot routes defined as let to be lazy-loaded locally
 let botRoutes;
-try {
-    // نستخدم try-catch لضمان عدم توقف الموقع على Vercel
-    if (!process.env.VERCEL) {
-        botRoutes = require('./botRoutes');
-    }
-} catch (e) {
-    console.warn('[SERVER] Bot routes not loaded (Expected on Vercel)');
-}
 
 const app = express();
 app.set('trust proxy', 1); // For Vercel rate limiting
@@ -330,6 +324,7 @@ app.get('/api/public/movies', async (req, res) => {
         if (success) return;
     }
     
+    console.log('[API] Processing Public Movies request...');
     try {
         const { data, error } = await supabase.from('movies').select('*, movie_servers(name, url), movie_actors(actor_id)').order('created_at', { ascending: false });
         if (error) throw error;
@@ -356,6 +351,7 @@ app.get('/api/public/series', async (req, res) => {
         if (success) return;
     }
 
+    console.log('[API] Processing Public Series request...');
     try {
         const { data, error } = await supabase.from('series').select('*, series_actors(actor_id)').order('created_at', { ascending: false });
         if (error) throw error;
@@ -692,9 +688,21 @@ app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
 });
 
 // --- RAFIQ BOT ROUTES (EXPERIMENTAL - LOCAL ONLY) ---
-if (botRoutes) {
-    app.use('/api/admin/bot', authenticate, botRoutes);
-}
+app.use('/api/admin/bot', authenticate, (req, res, next) => {
+    if (process.env.VERCEL) {
+        return res.status(503).json({ error: 'Bot is disabled on Vercel' });
+    }
+    try {
+        if (!botRoutes) {
+            console.log('[SERVER] Lazy-loading Bot Routes...');
+            botRoutes = require('./botRoutes');
+        }
+        botRoutes(req, res, next);
+    } catch (err) {
+        console.error('[SERVER ERROR] Failed to load Bot Routes:', err.message);
+        res.status(500).json({ error: 'Bot module failed to load. Check local dependencies.' });
+    }
+});
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
