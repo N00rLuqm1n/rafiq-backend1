@@ -657,7 +657,7 @@ if (fs.existsSync(websitePath)) {
 }
 
 // --- TMDB PROXY (ADMIN ONLY) ---
-app.get('/api/admin/tmdb/proxy', authenticateJWT, async (req, res) => {
+app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
     const { endpoint, params } = req.query;
     if (!endpoint) return res.status(400).json({ error: 'Endpoint is required' });
 
