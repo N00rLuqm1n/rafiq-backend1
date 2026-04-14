@@ -656,6 +656,40 @@ if (fs.existsSync(websitePath)) {
     });
 }
 
+// --- TMDB PROXY (ADMIN ONLY) ---
+app.get('/api/admin/tmdb/proxy', authenticateJWT, async (req, res) => {
+    const { endpoint, params } = req.query;
+    if (!endpoint) return res.status(400).json({ error: 'Endpoint is required' });
+
+    try {
+        const tmdbApiKey = 'e3910c681690a177914cc16396c58010';
+        let tmdbUrl = `https://api.themoviedb.org/3${endpoint}?api_key=${tmdbApiKey}`;
+        
+        // Append extra params
+        if (params) {
+            try {
+                const decodedParams = JSON.parse(params);
+                Object.keys(decodedParams).forEach(key => {
+                    tmdbUrl += `&${key}=${encodeURIComponent(decodedParams[key])}`;
+                });
+            } catch (e) { console.warn('Failed to parse TMDB params'); }
+        }
+
+        console.log(`[TMDB BRIDGE] Requesting: ${tmdbUrl}`);
+        const response = await fetch(tmdbUrl, {
+            headers: { 
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0'
+            }
+        });
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        console.error('[TMDB BRIDGE ERROR]', err.message);
+        res.status(500).json({ error: 'Failed to fetch from TMDB' });
+    }
+});
+
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
 
