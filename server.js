@@ -260,15 +260,24 @@ const VERCEL_BACKEND_URL = 'https://rafiq-backend1.vercel.app/api';
 
 const cloudBridge = async (req, res, targetPath) => {
     try {
-        console.log(`[BRIDGE] Fetching from Cloud: ${targetPath}`);
+        console.log(`[BRIDGE] Requesting: ${targetPath}`);
         const response = await fetch(`${VERCEL_BACKEND_URL}${targetPath}`, {
-            headers: { 'Accept': 'application/json' }
+            headers: { 
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/RafiqBridge/1.0'
+            }
         });
+        
+        if (!response.ok) {
+            console.error(`[BRIDGE CLOUD ERROR] Vercel returned ${response.status} for ${targetPath}`);
+            return false;
+        }
+
         const data = await response.json();
         res.json(data);
         return true;
     } catch (err) {
-        console.error('[BRIDGE ERROR]', err.message);
+        console.error('[BRIDGE NETWORK ERROR]', err.message);
         return false;
     }
 };
