@@ -400,6 +400,10 @@ app.get('/api/public/messages', async (req, res) => {
 
 // --- PROTECTED ADMIN ROUTES ---
 app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'), async (req, res) => {
+    // INITIAL PURGE: Remove any incoming flags that might clash with DB schema
+    delete req.body.is_active;
+    delete req.body.isActive;
+    
     console.log('[ADMIN] Saving Movie:', req.body.title);
     try {
         const { actors, watchUrls, ...rawMovie } = req.body;
@@ -467,6 +471,10 @@ app.delete('/api/admin/actors/:id', authenticate, auditLog('DELETE_ACTOR'), asyn
 });
 
 app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req, res) => {
+    // INITIAL PURGE: Remove any incoming flags that might clash with DB schema
+    delete req.body.is_active;
+    delete req.body.isActive;
+    
     console.log('[ADMIN] Saving Series/Content:', req.body.title || 'Partial Update');
     try {
         const { actors, seasons, ...rawSeries } = req.body;
