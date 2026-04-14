@@ -258,12 +258,12 @@ const toDBSeries = (s) => ({
 // --- CLOUD BRIDGE (PROXY) HELPER ---
 const VERCEL_BACKEND_URL = 'https://rafiq-backend1.vercel.app/api';
 
-const cloudBridge = async (req, res, targetPath, attempts = 3) => {
+const cloudBridge = async (req, res, targetPath, attempts = 5) => {
     for (let i = 0; i < attempts; i++) {
         try {
             console.log(`[BRIDGE] Attempt ${i + 1}: ${targetPath}`);
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
             const response = await fetch(`${VERCEL_BACKEND_URL}${targetPath}`, {
                 signal: controller.signal,
@@ -277,7 +277,11 @@ const cloudBridge = async (req, res, targetPath, attempts = 3) => {
 
             if (!response.ok) {
                 console.error(`[BRIDGE CLOUD ERROR] Vercel returned ${response.status} for ${targetPath}`);
-                return false;
+                if (i === attempts - 1) {
+                    res.status(response.status).json({ error: 'Cloud service returned error' });
+                    return true;
+                }
+                continue;
             }
 
             const data = await response.json();
@@ -286,13 +290,16 @@ const cloudBridge = async (req, res, targetPath, attempts = 3) => {
         } catch (err) {
             console.error(`[BRIDGE ATTEMPT ${i + 1} FAILED]`, err.message);
             if (i === attempts - 1) {
-                res.status(500).json({ error: 'Cloud Bridge connection failed after multiple attempts' });
-                return false;
+                // Return a final error if we represent all failures
+                if (!res.headersSent) {
+                    res.status(503).json({ error: 'Cloud Bridge connection failed' });
+                }
+                return true;
             }
-            // Wait 500ms before retry
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 800)); // Wait slightly longer between retries
         }
     }
+    return false;
 };
 
 // --- PUBLIC ROUTES ---
