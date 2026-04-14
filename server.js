@@ -255,8 +255,31 @@ const toDBSeries = (s) => ({
     trailer_url: s.trailerUrl
 });
 
+// --- CLOUD BRIDGE (PROXY) HELPER ---
+const VERCEL_BACKEND_URL = 'https://rafiq-backend1.vercel.app/api';
+
+const cloudBridge = async (req, res, targetPath) => {
+    try {
+        console.log(`[BRIDGE] Fetching from Cloud: ${targetPath}`);
+        const response = await fetch(`${VERCEL_BACKEND_URL}${targetPath}`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        res.json(data);
+        return true;
+    } catch (err) {
+        console.error('[BRIDGE ERROR]', err.message);
+        return false;
+    }
+};
+
 // --- PUBLIC ROUTES ---
 app.get('/api/public/movies', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, '/public/movies');
+        if (success) return;
+    }
+    
     try {
         const { data, error } = await supabase.from('movies').select('*, movie_servers(name, url), movie_actors(actor_id)').order('created_at', { ascending: false });
         if (error) throw error;
@@ -265,6 +288,11 @@ app.get('/api/public/movies', async (req, res) => {
 });
 
 app.get('/api/public/movies/:id', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, `/public/movies/${req.params.id}`);
+        if (success) return;
+    }
+
     try {
         const { data, error } = await supabase.from('movies').select('*, movie_servers(name, url), movie_actors(actor_id)').eq('id', req.params.id).single();
         if (error) throw error;
@@ -273,6 +301,11 @@ app.get('/api/public/movies/:id', async (req, res) => {
 });
 
 app.get('/api/public/series', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, '/public/series');
+        if (success) return;
+    }
+
     try {
         const { data, error } = await supabase.from('series').select('*, series_actors(actor_id)').order('created_at', { ascending: false });
         if (error) throw error;
@@ -285,6 +318,11 @@ app.get('/api/public/series', async (req, res) => {
 });
 
 app.get('/api/public/series/:id', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, `/public/series/${req.params.id}`);
+        if (success) return;
+    }
+
     try {
         const { data, error } = await supabase.from('series').select('*, series_actors(actor_id), seasons(*, episodes(*, episode_servers(name, url)))').eq('id', req.params.id).single();
         if (error) throw error;
@@ -293,6 +331,11 @@ app.get('/api/public/series/:id', async (req, res) => {
 });
 
 app.get('/api/public/actors', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, '/public/actors');
+        if (success) return;
+    }
+
     try {
         const { data, error } = await supabase.from('actors').select('*').order('created_at', { ascending: false });
         if (error) throw error;
@@ -301,6 +344,11 @@ app.get('/api/public/actors', async (req, res) => {
 });
 
 app.get('/api/public/messages', async (req, res) => {
+    if (!supabase) {
+        const success = await cloudBridge(req, res, '/public/messages');
+        if (success) return;
+    }
+
     try {
         const { data, error } = await supabase.from('messages').select('*').eq('is_active', true).order('created_at', { ascending: false });
         if (error) throw error;
