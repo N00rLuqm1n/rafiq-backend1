@@ -38,10 +38,11 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "https:", "data:", "blob:"],
-            connectSrc: ["'self'", "https://*.supabase.co", "https://*.googlesyndication.com"],
-            frameSrc: ["'self'", "*"], // Required for video iframes
+            connectSrc: ["'self'", "https://*.supabase.co", "https://*.googlesyndication.com", "https://rafiq-backend1.vercel.app"],
+            frameSrc: ["'self'", "*"], // Allow all video frames
             objectSrc: ["'none'"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"]
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+            imgSrc: ["'self'", "https:", "data:", "blob:", "https://rafiq-backend1.vercel.app"]
         }
     },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
