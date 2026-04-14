@@ -549,16 +549,21 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
 
 
 
-// --- HEALTH CHECK ---
-app.get('/', (req, res) => res.send('Rafiq Secure Backend is running 🚀'));
-
 // Serve Static Files from Website build
 const websiteDistPath = path.join(__dirname, '../website/dist');
 if (fs.existsSync(websiteDistPath)) {
     app.use(express.static(websiteDistPath));
     console.log('[BACKEND] Serving website from:', websiteDistPath);
     
-    // Catch-all for React Router
+    // Catch-all for React Router (must be after all API routes)
+    // We handle this at the very end
+}
+
+// --- HEALTH CHECK ---
+app.get('/api/health', (req, res) => res.json({ status: 'running', message: 'Rafiq Secure Backend is ready 🚀' }));
+
+// Final Catch-all for the website
+if (fs.existsSync(websiteDistPath)) {
     app.get('*', (req, res) => {
         if (!req.path.startsWith('/api')) {
             res.sendFile(path.join(websiteDistPath, 'index.html'));
