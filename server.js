@@ -707,7 +707,7 @@ if (require.main === module) {
     const LOCAL_PORT = 5055; // Changed to avoid conflicts
     app.listen(LOCAL_PORT, '0.0.0.0', () => {
         console.log(`
-        🚀 Rafiq Local Server is ready!
+        🚀 Rafiq Local Server [Version 2.0 - Final Clean] is ready!
         🌍 Access Website: http://localhost:${LOCAL_PORT}
         `);
     });
