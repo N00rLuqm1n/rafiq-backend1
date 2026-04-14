@@ -628,34 +628,6 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
         res.json(data);
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
-
-
-
-// --- STATIC FILES & WEB INTERFACE (LOCAL & CLOUD SUPPORT) ---
-const websitePath = path.resolve(__dirname, '..', 'website', 'dist');
-
-if (fs.existsSync(websitePath)) {
-    app.use(express.static(websitePath));
-    console.log('[SERVER] ✅ LOCAL WEBSITE DETECTED at:', websitePath);
-
-    app.get('*', (req, res) => {
-        if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API not found' });
-        res.sendFile(path.join(websitePath, 'index.html'));
-    });
-} else {
-    console.warn('[SERVER] ⚠️ Website build not found at:', websitePath);
-    app.get('/', (req, res) => {
-        const isVercel = process.env.VERCEL === '1' || req.headers.host.includes('vercel');
-        res.send(`
-            <div style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>🚀 Rafiq API is Live (${isVercel ? 'Cloud' : 'Local'})</h1>
-                <p>This is the API server. If you wanted the website, make sure to run 'npm run build' in the website folder.</p>
-                <p style="color: gray; font-size: 0.8rem;">Checked path: ${websitePath}</p>
-            </div>
-        `);
-    });
-}
-
 // --- TMDB PROXY (ADMIN ONLY) ---
 app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
     const { endpoint, params } = req.query;
@@ -692,6 +664,31 @@ app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
+
+
+// --- STATIC FILES & WEB INTERFACE (LOCAL & CLOUD SUPPORT) ---
+const websitePath = path.resolve(__dirname, '..', 'website', 'dist');
+
+if (fs.existsSync(websitePath)) {
+    app.use(express.static(websitePath));
+    console.log('[SERVER] ✅ LOCAL WEBSITE DETECTED at:', websitePath);
+
+    app.get('*', (req, res) => {
+        if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API not found' });
+        res.sendFile(path.join(websitePath, 'index.html'));
+    });
+} else {
+    console.warn('[SERVER] ⚠️ Website build not found at:', websitePath);
+    app.get('/', (req, res) => {
+        const isVercel = process.env.VERCEL === '1' || req.headers.host.includes('vercel');
+        res.send(`
+            <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                <h1>🚀 Rafiq API is Live (${isVercel ? 'Cloud' : 'Local'})</h1>
+                <p>This is the API server. If you wanted the website, make sure to run 'npm run build' in the website folder.</p>
+                <p style="color: gray; font-size: 0.8rem;">Checked path: ${websitePath}</p>
+            </div>
+        `);
+    });
 
 // Export for Vercel
 app.use(errorHandler);
