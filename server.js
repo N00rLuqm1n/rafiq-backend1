@@ -689,6 +689,7 @@ if (fs.existsSync(websitePath)) {
             </div>
         `);
     });
+}
 
 // Export for Vercel
 app.use(errorHandler);
