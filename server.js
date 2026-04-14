@@ -730,7 +730,7 @@ app.use(errorHandler);
 
 // Listen Locally if not in Vercel
 if (require.main === module) {
-    const LOCAL_PORT = 5055; // Changed to avoid conflicts
+    const LOCAL_PORT = process.env.PORT || 5001; 
     app.listen(LOCAL_PORT, '0.0.0.0', () => {
         console.log(`
         🚀 Rafiq Local Server [Version 2.0 - Final Clean] is ready!
