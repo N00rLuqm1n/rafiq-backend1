@@ -549,26 +549,31 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
 
 
 
-// --- STATIC FILES & WEB INTERFACE ---
-const websitePath = path.resolve(__dirname, '..', 'website', 'dist');
-
-console.log('[DEBUG] Checking website path:', websitePath);
+// --- STATIC FILES & WEB INTERFACE (LOCAL & CLOUD SUPPORT) ---
+// Try to find the website folder relative to the server
+const websitePath = path.resolve(__dirname, '../website/dist');
 
 if (fs.existsSync(websitePath)) {
-    // Serve static assets
     app.use(express.static(websitePath));
-    console.log('[SERVER] ✅ Website build detected and active.');
+    console.log('[SERVER] ✅ LOCAL WEBSITE DETECTED at:', websitePath);
 
-    // Catch-all to serve index.html for any frontend route
     app.get('*', (req, res) => {
-        if (req.path.startsWith('/api')) {
-            return res.status(404).json({ error: 'API route not found' });
-        }
+        if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API not found' });
         res.sendFile(path.join(websitePath, 'index.html'));
     });
 } else {
-    console.warn('[SERVER] ❌ Website build NOT found at:', websitePath);
-    app.get('/', (req, res) => res.send(`<h1>Rafiq API is running</h1><p>Website build folder not found at: ${websitePath}</p>`));
+    // If we are here, we are likely on Vercel OR the folder is missing locally
+    console.warn('[SERVER] ⚠️ Website build not found at:', websitePath);
+    app.get('/', (req, res) => {
+        const isVercel = process.env.VERCEL === '1';
+        res.send(`
+            <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                <h1>🚀 Rafiq API is Live (${isVercel ? 'Cloud' : 'Local'})</h1>
+                <p>This is the API server. If you wanted the website, make sure to run 'npm run build' in the website folder.</p>
+                <p style="color: gray; font-size: 0.8rem;">Path checked: ${websitePath}</p>
+            </div>
+        `);
+    });
 }
 // Health check moved outside if needed or kept simple
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
