@@ -29,18 +29,19 @@ if (!JWT_SECRET) {
 // --- CONFIGURATION & SECURITY ---
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',') 
-    : ['https://rafiq-backend1.vercel.app', 'electron://rafiq'];
+    : ['https://rafiq-backend1.vercel.app', 'electron://rafiq', 'http://localhost:5173', 'https://رفيق.vip', 'https://www.رفيق.vip'];
 
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "https:", "data:"],
-            connectSrc: ["'self'", "https://*.supabase.co"],
-            frameSrc: ["'none'"],
-            objectSrc: ["'none'"]
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            imgSrc: ["'self'", "https:", "data:", "blob:"],
+            connectSrc: ["'self'", "https://*.supabase.co", "https://*.googlesyndication.com"],
+            frameSrc: ["'self'", "*"], // Required for video iframes
+            objectSrc: ["'none'"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"]
         }
     },
     hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
@@ -542,6 +543,34 @@ app.post('/api/admin/doodstream/remote-upload', authenticate, async (req, res) =
 // --- HEALTH CHECK ---
 app.get('/', (req, res) => res.send('Rafiq Secure Backend is running 🚀'));
 
+// Serve Static Files from Website build
+const websiteDistPath = path.join(__dirname, '../website/dist');
+if (fs.existsSync(websiteDistPath)) {
+    app.use(express.static(websiteDistPath));
+    console.log('[BACKEND] Serving website from:', websiteDistPath);
+    
+    // Catch-all for React Router
+    app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(websiteDistPath, 'index.html'));
+        } else {
+            res.status(404).json({ error: 'API route not found' });
+        }
+    });
+}
+
 // Export for Vercel
 app.use(errorHandler);
+
+// Listen Locally if not in Vercel/Serverless environment
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`
+        🚀 Rafiq Backend is ready!
+        🌍 Access locally: http://localhost:${PORT}
+        🌐 Website: https://رفيق.vip
+        `);
+    });
+}
+
 module.exports = app;
