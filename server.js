@@ -29,7 +29,15 @@ if (!JWT_SECRET) {
 // --- CONFIGURATION & SECURITY ---
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',') 
-    : ['https://rafiq-backend1.vercel.app', 'electron://rafiq', 'http://localhost:5173', 'https://رفيق.vip', 'https://www.رفيق.vip'];
+    : [
+        'https://rafiq-backend1.vercel.app', 
+        'electron://rafiq', 
+        'http://localhost:5173', 
+        'http://localhost:5001', 
+        'http://localhost:5055', 
+        'https://رفيق.vip', 
+        'https://www.رفيق.vip'
+      ];
 
 app.use(helmet({
     contentSecurityPolicy: {
