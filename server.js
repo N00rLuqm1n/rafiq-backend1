@@ -404,6 +404,10 @@ app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'
     try {
         const { actors, watchUrls, ...rawMovie } = req.body;
         const dbMovie = toDBMovie(rawMovie);
+        // NUCLEAR FILTER: Ensure no is_active field ever reaches the DB for movies
+        delete dbMovie.is_active;
+        delete dbMovie.isActive;
+        
         console.log('[DEBUG] Saving to DB (Movies):', JSON.stringify(dbMovie, null, 2));
         
         const { error } = await supabase.from('movies').upsert(dbMovie);
