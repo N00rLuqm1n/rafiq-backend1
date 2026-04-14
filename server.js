@@ -68,19 +68,7 @@ app.use((req, res, next) => {
 
 app.use(morgan('combined'));
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        
-        const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.');
-        const isAllowedSite = allowedOrigins.some(ao => origin === ao);
-        
-        if (isLocal || isAllowedSite || process.env.NODE_ENV === 'development') {
-            callback(null, true); // This will set Access-Control-Allow-Origin to the request's origin
-        } else {
-            console.warn(`[SECURITY] Blocked cross-origin request from: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: allowedOrigins, // Express cors handles arrays by echoing the matching origin automatically
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
