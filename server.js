@@ -11,10 +11,10 @@ const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// Middlewares
-const { validateMovie, validateActor } = require('./middleware/validate');
-const auditLog = require('./middleware/audit');
-const errorHandler = require('./middleware/errorHandler');
+// Middlewares (Flat Structure for Vercel)
+const { validateMovie, validateActor } = require('./validate');
+const auditLog = require('./audit');
+const errorHandler = require('./errorHandler');
 
 const app = express();
 app.set('trust proxy', 1); // For Vercel rate limiting
