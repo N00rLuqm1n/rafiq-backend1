@@ -15,6 +15,7 @@ require('dotenv').config();
 const { validateMovie, validateActor } = require('./validate');
 const auditLog = require('./audit');
 const errorHandler = require('./errorHandler');
+const botRoutes = require('./botRoutes');
 
 const app = express();
 app.set('trust proxy', 1); // For Vercel rate limiting
@@ -68,17 +69,24 @@ app.use((req, res, next) => {
 
 app.use(morgan('combined'));
 app.use(cors({
-    origin: allowedOrigins, // Express cors handles arrays by echoing the matching origin automatically
+    origin: '*', // Allow all origins for local app compatibility
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '5mb' }));
+// Disable caching for API routes to ensure fresh data
+app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+});
 
 // --- RATE LIMITERS ---
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10000, // Increased to 10000 to allow heavy admin operations (many actors/episodes)
+    max: 1000, // Increased from 100 to 1000
     message: { error: 'Rate limit exceeded. Try again later.' },
     skip: (req) => {
         const origin = req.get('origin') || '';
@@ -222,7 +230,7 @@ const mapMessage = (m) => ({
     ctaUrl: m.cta_url || m.ctaUrl || '',
     durationSeconds: m.duration_seconds || m.durationSeconds || 0,
     triggerDelaySeconds: m.trigger_delay_seconds || m.triggerDelaySeconds || 0,
-    isActive: m.is_active !== undefined ? m.is_active : (m.isActive !== undefined ? m.isActive : true),
+    isActive: true, // Hardcoded for now
     createdAt: m.created_at || m.createdAt
 });
 
@@ -234,44 +242,31 @@ const toDBMessage = (m) => ({
     cta_text: m.ctaText,
     cta_url: m.ctaUrl,
     duration_seconds: m.durationSeconds,
-    trigger_delay_seconds: m.triggerDelaySeconds,
-    is_active: m.isActive
+    trigger_delay_seconds: m.triggerDelaySeconds
 });
 
 // Helper to sanitize object for DB (Snake Case per discovered schema)
-const toDBMovie = (m) => {
-    const dbM = {
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        rating: m.rating,
-        release_date: m.release_date || m.releaseDate,
-        image: m.image,
-        background: m.background,
-        trailer_url: m.trailer_url || m.trailerUrl
-    };
-    // NUCLEAR DELETE: Ensure no isActive field exists
-    delete dbM.is_active;
-    delete dbM.isActive;
-    return dbM;
-};
+const toDBMovie = (m) => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    rating: m.rating,
+    release_date: m.releaseDate,
+    image: m.image,
+    background: m.background,
+    trailer_url: m.trailerUrl
+});
 
-const toDBSeries = (s) => {
-    const dbS = {
-        id: s.id,
-        title: s.title,
-        description: s.description,
-        rating: s.rating,
-        release_date: s.release_date || s.releaseDate,
-        image: s.image,
-        background: s.background,
-        trailer_url: s.trailer_url || s.trailerUrl
-    };
-    // NUCLEAR DELETE
-    delete dbS.is_active;
-    delete dbS.isActive;
-    return dbS;
-};
+const toDBSeries = (s) => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    rating: s.rating,
+    release_date: s.releaseDate,
+    image: s.image,
+    background: s.background,
+    trailer_url: s.trailerUrl
+});
 
 // --- CLOUD BRIDGE (PROXY) HELPER ---
 const VERCEL_BACKEND_URL = 'https://rafiq-backend1.vercel.app/api';
@@ -397,7 +392,7 @@ app.get('/api/public/messages', async (req, res) => {
     }
 
     try {
-        const { data, error } = await supabase.from('messages').select('*').eq('is_active', true).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
         if (error) throw error;
         res.json(data ? data.map(mapMessage) : []);
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -414,6 +409,9 @@ app.post('/api/admin/movies', authenticate, validateMovie, auditLog('SAVE_MOVIE'
     try {
         const { actors, watchUrls, ...rawMovie } = req.body;
         const dbMovie = toDBMovie(rawMovie);
+        // NUCLEAR FILTER: Ensure no is_active field ever reaches the DB for movies
+        delete dbMovie.is_active;
+        delete dbMovie.isActive;
         
         console.log('[DEBUG] Saving to DB (Movies):', JSON.stringify(dbMovie, null, 2));
         
@@ -474,10 +472,10 @@ app.delete('/api/admin/actors/:id', authenticate, auditLog('DELETE_ACTOR'), asyn
 });
 
 app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req, res) => {
-    // INITIAL PURGE
+    // INITIAL PURGE: Remove any incoming flags that might clash with DB schema
     delete req.body.is_active;
     delete req.body.isActive;
-
+    
     console.log('[ADMIN] Saving Series/Content:', req.body.title || 'Partial Update');
     try {
         const { actors, seasons, ...rawSeries } = req.body;
@@ -500,6 +498,7 @@ app.post('/api/admin/series', authenticate, auditLog('SAVE_SERIES'), async (req,
                 trailer_url: rawSeries.trailer_url || rawSeries.trailerUrl
             };
             
+            console.log('[DEBUG] Saving to DB (Series):', JSON.stringify(dbSeries, null, 2));
             const { error: sErr } = await supabase.from('series').upsert(dbSeries);
             if (sErr) {
                 console.error('[ADMIN ERROR] Series Upsert Failed:', sErr.message);
@@ -683,6 +682,9 @@ app.get('/api/admin/tmdb/proxy', authenticate, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch from TMDB' });
     }
 });
+
+// --- RAFIQ BOT ROUTES (EXPERIMENTAL) ---
+app.use('/api/admin/bot', authenticate, botRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'active' }));
