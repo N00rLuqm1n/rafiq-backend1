@@ -99,6 +99,12 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
+if (supabase) {
+    console.info('[DATABASE] ✅ Supabase client initialized locally.');
+} else {
+    console.warn('[DATABASE] ⚠️ Supabase keys missing. Using Cloud Bridge only.');
+}
+
 const DOOD_API_KEY = '562660bwqmd4fjnts767rz';
 const DOOD_BASE_URL = 'https://doodapi.co/api';
 
