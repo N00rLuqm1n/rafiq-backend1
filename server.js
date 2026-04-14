@@ -44,12 +44,11 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            imgSrc: ["'self'", "https:", "data:", "blob:"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
             connectSrc: ["'self'", "https://*.supabase.co", "https://*.googlesyndication.com", "https://rafiq-backend1.vercel.app"],
-            frameSrc: ["'self'", "*"], // Allow all video frames
+            frameSrc: ["'self'", "*"], 
             objectSrc: ["'none'"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:", "https://cdnjs.cloudflare.com"],
             imgSrc: ["'self'", "https:", "data:", "blob:", "https://rafiq-backend1.vercel.app"]
         }
     },
@@ -66,14 +65,13 @@ app.use((req, res, next) => {
 app.use(morgan('combined'));
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
         
-        // Check if origin is in our allowed list OR is a local environment
         const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.');
+        const isAllowedSite = allowedOrigins.some(ao => origin === ao);
         
-        if (isLocal || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-            callback(null, true);
+        if (isLocal || isAllowedSite || process.env.NODE_ENV === 'development') {
+            callback(null, true); // This will set Access-Control-Allow-Origin to the request's origin
         } else {
             console.warn(`[SECURITY] Blocked cross-origin request from: ${origin}`);
             callback(new Error('Not allowed by CORS'));
