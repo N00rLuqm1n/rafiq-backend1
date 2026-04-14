@@ -58,8 +58,13 @@ app.use((req, res, next) => {
 app.use(morgan('combined'));
 app.use(cors({
     origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+        
+        // Check if origin is in our allowed list OR is a local environment
+        const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.');
+        
+        if (isLocal || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
             callback(null, true);
         } else {
             console.warn(`[SECURITY] Blocked cross-origin request from: ${origin}`);
